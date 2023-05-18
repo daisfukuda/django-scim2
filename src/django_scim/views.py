@@ -73,8 +73,11 @@ class SCIMView(View):
     def get_object(self):
         """Get object by configurable ID."""
         # Perform the lookup filtering.
+        # self.lookup_url_kwarg にて 'uuid' が返される
         lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
 
+        # uuid は django urls.py の endpoint に記述されている <uuid> に相当する
+        # 例えば /Users/17/ を指定した場合、kwargs は urls.py により {uuid: 17} で返ってくるため、基本的には以下 if 文は true になるはず
         if lookup_url_kwarg not in self.kwargs:
             msg = (
                 f'Expected view {self.__class__.__name__} to be called with a URL keyword argument '
@@ -83,15 +86,21 @@ class SCIMView(View):
             )
             raise exceptions.BadRequestError(msg)
 
+        # urls.py から渡された kwargs に uuid: 17 が含まれるので uuid = 17 となる
         uuid = self.kwargs[lookup_url_kwarg]
 
+        # get_extra_filter_kwargs には最終的には空の dict {} が返ってくる
         extra_filter_kwargs = self.get_extra_filter_kwargs(self.request, uuid)
+        # lookup_field には SCIMUser クラスのインスタンス変数 id_field (デフォルト scim_id だが上書き可) が入る
+        # 空の dict に scim_id: uuid (17) が入る
         extra_filter_kwargs[self.lookup_field] = uuid
         # No use of get_extra_exclude_kwargs here since we are
         # searching for a specific single object.
 
         try:
+            # ** は不要と思うがあっても害はない。obj に指定されたインスタンスを格納する。
             obj = self.model_cls.objects.get(**extra_filter_kwargs)
+            # utils.py にて後処理を追加可能だがデフォルトでは何もせず obj を返す
             return self.get_object_post_processor(self.request, obj)
         except ObjectDoesNotExist:
             raise exceptions.NotFoundError(uuid)
@@ -358,6 +367,7 @@ class PostView(object):
 
 class PutView(object):
     def put(self, request, *args, **kwargs):
+        # get_object で self.model_cls の 指定ユーザーのインスタンスを返す
         obj = self.get_object()
 
         scim_obj = self.scim_adapter(obj, request=request)
